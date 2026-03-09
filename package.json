@@ -1,0 +1,44 @@
+{
+  "name": "@xcrop/sdk",
+  "version": "1.0.0",
+  "description": "Official JavaScript/TypeScript SDK for the XCROP API — X/Twitter data intelligence platform",
+  "author": "XCROP <support@xcrop.io>",
+  "license": "MIT",
+  "homepage": "https://xcrop.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xcrop/xcrop-js.git"
+  },
+  "keywords": ["xcrop", "twitter", "x", "api", "sdk", "scraper", "tweets", "social-media"],
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
