@@ -66,14 +66,71 @@ export interface User {
   [key: string]: unknown;
 }
 
-export interface UserRelationship {
+export interface CheckFollowResult {
   source: string;
   target: string;
-  following: boolean;
-  followed_by: boolean;
-  blocking?: boolean;
-  muting?: boolean;
+  /** Does `source` follow `target`? */
+  source_follows_target: boolean;
+  /** Does `target` follow `source`? */
+  target_follows_source: boolean;
   [key: string]: unknown;
+}
+
+// ─── Qualification Check Types (airdrop/giveaway gating) ─────────
+
+export interface QualifiedAccountParams {
+  /** Minimum follower count required. */
+  min_followers?: number;
+  /** Minimum account age in days. */
+  min_age_days?: number;
+}
+
+export interface QualifiedAccountResult {
+  username: string;
+  qualified: boolean;
+  followers: number;
+  accountAgeDays: number;
+  minFollowers: number;
+  minAgeDays: number;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
+export interface QualifiedNameParams {
+  /** Text the display name must contain. */
+  contains: string;
+  /** Where the text must appear in the display name. Defaults to 'anywhere'. */
+  position?: 'anywhere' | 'left' | 'right';
+}
+
+export interface QualifiedNameResult {
+  username: string;
+  qualified: boolean;
+  name: string;
+  contains: string;
+  position: string;
+  [key: string]: unknown;
+}
+
+// ─── Follower IDs (bulk) ──────────────────────────────────────────
+
+export interface FollowersIdsParams {
+  /** Number of IDs to return, up to 5000. Defaults to 5000. */
+  count?: number;
+  cursor?: string;
+}
+
+export interface FollowersIdsMeta {
+  total?: number;
+  has_next_page?: boolean;
+  next_cursor?: string | null;
+  latency_ms?: number;
+  [key: string]: unknown;
+}
+
+export interface FollowersIdsResponse {
+  data: string[];
+  meta: FollowersIdsMeta;
 }
 
 // ─── Tweet Types ─────────────────────────────────────────────────
@@ -155,12 +212,35 @@ export interface List {
 
 // ─── Trending Types ──────────────────────────────────────────────
 
+export interface TrendingParams {
+  /** Country/region for trends. Defaults to 'Worldwide'. */
+  country?: string;
+}
+
 export interface TrendingTopic {
   name: string;
   tweet_count?: number;
   domain?: string;
   context?: string;
   [key: string]: unknown;
+}
+
+// ─── Community Types ─────────────────────────────────────────────
+
+export interface Community {
+  id: string;
+  name: string;
+  description?: string;
+  member_count?: number;
+  [key: string]: unknown;
+}
+
+export interface CommunityTweetsParams extends PaginationParams {
+  sort?: 'latest' | 'popular' | 'engagement';
+}
+
+export interface CommunityMembersParams extends PaginationParams {
+  sort?: 'default' | 'followers' | 'name';
 }
 
 // ─── Account Types ───────────────────────────────────────────────
@@ -209,13 +289,6 @@ export interface InteractionCheckResult {
   found: boolean;
   tweet_id?: string;
   [key: string]: unknown;
-}
-
-// ─── KOL Types ───────────────────────────────────────────────────
-
-export interface KolTimelineParams {
-  usernames: string[];
-  count?: number;
 }
 
 // ─── Stream Types ────────────────────────────────────────────────

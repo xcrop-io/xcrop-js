@@ -1,5 +1,5 @@
 import type { HttpClient } from '../http.js';
-import type { TrendingTopic, ApiResponse } from '../types.js';
+import type { TrendingTopic, TrendingParams, ApiResponse } from '../types.js';
 
 export class TrendingResource {
   constructor(private readonly http: HttpClient) {}
@@ -7,10 +7,11 @@ export class TrendingResource {
   /**
    * Get current trending topics.
    */
-  async get(): Promise<ApiResponse<TrendingTopic[]>> {
+  async get(params: TrendingParams = {}): Promise<ApiResponse<TrendingTopic[]>> {
     return this.http.request<TrendingTopic[]>({
       method: 'GET',
       path: '/trending',
+      query: { country: params.country },
     });
   }
 }

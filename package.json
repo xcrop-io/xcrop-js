@@ -1,6 +1,6 @@
 {
   "name": "@xcrop/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official JavaScript/TypeScript SDK for the XCROP API — X/Twitter data intelligence platform",
   "author": "XCROP <support@xcrop.io>",
   "license": "MIT",

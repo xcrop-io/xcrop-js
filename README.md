@@ -1,6 +1,6 @@
 # @xcrop/sdk
 
-Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform.
+Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform, covering 39 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
 
 - Full TypeScript support with detailed types for all endpoints
 - Auto-retry on rate limits (429) with exponential backoff
@@ -52,24 +52,36 @@ const client = new XCrop({
 // Profile
 const { data: user } = await client.users.get('elonmusk');
 
-// Tweets, mentions, replies, media, likes
+// Tweets, mentions, replies, media
 const { data: tweets } = await client.users.tweets('elonmusk', { count: 20 });
 const { data: mentions } = await client.users.mentions('elonmusk');
 const { data: replies } = await client.users.replies('elonmusk');
 const { data: media } = await client.users.media('elonmusk');
-const { data: likes } = await client.users.likes('elonmusk');
 
 // Followers & following
 const { data: followers } = await client.users.followers('elonmusk', { count: 100 });
 const { data: following } = await client.users.following('elonmusk');
 const { data: verified } = await client.users.verifiedFollowers('elonmusk');
 
+// Raw follower IDs (bulk, no profile metadata, up to 5000/call)
+const { data: ids } = await client.users.followersIds('elonmusk', { count: 5000 });
+
 // Batch lookup (max 100)
 const { data: users } = await client.users.batch(['elonmusk', 'jack', 'VitalikButerin']);
 
-// Relationship
-const { data: rel } = await client.users.relationship('elonmusk', 'jack');
-console.log(rel.following, rel.followed_by);
+// Check follow relationship
+const { data: rel } = await client.users.checkFollow('elonmusk', 'jack');
+console.log(rel.source_follows_target, rel.target_follows_source);
+
+// Eligibility checks — for airdrop/giveaway gating
+const { data: qa } = await client.users.checkQualifiedAccount('elonmusk', {
+  min_followers: 1000,
+  min_age_days: 30,
+});
+const { data: qn } = await client.users.checkQualifiedName('elonmusk', {
+  contains: 'crypto',
+  position: 'anywhere', // 'anywhere' | 'left' | 'right'
+});
 ```
 
 ## Tweets
@@ -81,13 +93,22 @@ const { data: tweet } = await client.tweets.get('1234567890');
 // Conversation thread
 const { data: thread } = await client.tweets.conversation('1234567890', { count: 50 });
 
-// Quotes, likers, retweeters
+// Quote tweets
 const { data: quotes } = await client.tweets.quotes('1234567890');
-const { data: likers } = await client.tweets.likers('1234567890');
-const { data: retweeters } = await client.tweets.retweeters('1234567890');
 
 // Batch lookup (max 100)
 const { data: tweets } = await client.tweets.batch(['123', '456', '789']);
+```
+
+## Communities
+
+X Communities data. These endpoints are in beta and may return a 503
+(`ENDPOINT_IN_DEVELOPMENT`) while the backend is being finished.
+
+```typescript
+const { data: community } = await client.communities.get('1708766018985501165');
+const { data: tweets } = await client.communities.tweets('1708766018985501165', { sort: 'latest' });
+const { data: members } = await client.communities.members('1708766018985501165', { sort: 'default' });
 ```
 
 ## Search
@@ -132,14 +153,13 @@ client.paginate.userFollowing(username, params)
 client.paginate.userReplies(username, params)
 client.paginate.userMedia(username, params)
 client.paginate.userVerifiedFollowers(username, params)
-client.paginate.userLikes(username, params)
 client.paginate.tweetConversation(tweetId, params)
 client.paginate.tweetQuotes(tweetId, params)
-client.paginate.tweetLikers(tweetId, params)
-client.paginate.tweetRetweeters(tweetId, params)
 client.paginate.listTweets(listId, params)
 client.paginate.listMembers(listId, params)
 client.paginate.listSubscribers(listId, params)
+client.paginate.communityTweets(communityId, params)
+client.paginate.communityMembers(communityId, params)
 ```
 
 ## Streaming
@@ -247,12 +267,10 @@ await client.users.unfollow('elonmusk');
 Check if a user interacted with a specific tweet (no connected account needed):
 
 ```typescript
-const { data: liked } = await client.tweets.checkLike('1234567890', 'username');
 const { data: retweeted } = await client.tweets.checkRetweet('1234567890', 'username');
 const { data: replied } = await client.tweets.checkReply('1234567890', 'username');
 const { data: quoted } = await client.tweets.checkQuote('1234567890', 'username');
 
-console.log(liked.found);    // boolean
 console.log(retweeted.found); // boolean
 ```
 
@@ -264,18 +282,20 @@ const { data: members } = await client.lists.members('12345');
 const { data: subs } = await client.lists.subscribers('12345');
 ```
 
-## Trending & KOL
+## Trending
 
 ```typescript
-// Trending topics
+// Trending topics (defaults to Worldwide)
 const { data: trends } = await client.trending.get();
-
-// KOL merged timeline
-const { data: timeline } = await client.kol.timeline({
-  usernames: ['elonmusk', 'VitalikButerin', 'CryptoCapo_'],
-  count: 20,
-});
+const { data: usTrends } = await client.trending.get({ country: 'United States' });
 ```
+
+## Account Monitoring
+
+Track specific X accounts over time (profile snapshots, tweet activity) via
+the `users` and `search` endpoints above — poll `client.users.get()` /
+`client.users.tweets()` on a schedule, or use `client.stream.connect()` for
+real-time updates.
 
 ## Error Handling
 
@@ -297,6 +317,28 @@ try {
   }
 }
 ```
+
+## Rate Limits
+
+Per-minute request limits, by plan:
+
+| Plan | Requests/min |
+|------|---------------|
+| Starter | 60 |
+| Basic | 300 |
+| Pro | 600 |
+| Pay-as-You-Go | 300 |
+
+Every plan (including the free Starter tier) can call all 39 endpoints — plans
+differ only by monthly credits, the rate limit above, and credit price. On a
+429 the SDK auto-retries with backoff (see `RateLimitError` above for the
+raw `retryAfter`/`remaining`/`limit` fields).
+
+## Payment
+
+Plans and credit top-ups are paid via cryptocurrency: USDT (BEP-20), USDC
+(BEP-20), SOL, and POL. Card payments (Stripe) are coming soon. See
+[xcrop.io/pricing](https://xcrop.io/pricing) for details.
 
 ## Response Format
 

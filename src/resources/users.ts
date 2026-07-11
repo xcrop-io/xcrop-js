@@ -5,7 +5,13 @@ import type {
   PaginationParams,
   PaginatedResponse,
   ApiResponse,
-  UserRelationship,
+  CheckFollowResult,
+  QualifiedAccountParams,
+  QualifiedAccountResult,
+  QualifiedNameParams,
+  QualifiedNameResult,
+  FollowersIdsParams,
+  FollowersIdsResponse,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -122,17 +128,18 @@ export class UsersResource {
   }
 
   /**
-   * Get a user's liked tweets.
+   * Get up to 5000 raw follower IDs (no profile metadata). Cheaper and
+   * faster than `followers()` for large-scale ID harvesting.
    */
-  async likes(
+  async followersIds(
     username: string,
-    params: PaginationParams = {}
-  ): Promise<PaginatedResponse<Tweet>> {
-    return this.http.request({
+    params: FollowersIdsParams = {}
+  ): Promise<FollowersIdsResponse> {
+    return this.http.request<string[]>({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/likes`,
+      path: `/users/${encodeURIComponent(username)}/followers-ids`,
       query: { count: params.count, cursor: params.cursor },
-    });
+    }) as unknown as Promise<FollowersIdsResponse>;
   }
 
   /**
@@ -147,16 +154,46 @@ export class UsersResource {
   }
 
   /**
-   * Check follow relationship between two users.
+   * Check whether `source` follows `target` (and vice versa).
    */
-  async relationship(
+  async checkFollow(
     source: string,
     target: string
-  ): Promise<ApiResponse<UserRelationship>> {
-    return this.http.request<UserRelationship>({
+  ): Promise<ApiResponse<CheckFollowResult>> {
+    return this.http.request<CheckFollowResult>({
       method: 'GET',
-      path: '/users/relationship',
+      path: '/users/check-follow',
       query: { source, target },
+    });
+  }
+
+  /**
+   * Check if an account is eligible by minimum followers / account age.
+   * For airdrop/giveaway gating.
+   */
+  async checkQualifiedAccount(
+    username: string,
+    params: QualifiedAccountParams = {}
+  ): Promise<ApiResponse<QualifiedAccountResult>> {
+    return this.http.request<QualifiedAccountResult>({
+      method: 'GET',
+      path: `/users/${encodeURIComponent(username)}/check-qualified-account`,
+      query: { min_followers: params.min_followers, min_age_days: params.min_age_days },
+    });
+  }
+
+  /**
+   * Check if a user's display name contains required text. For
+   * airdrop/giveaway gating.
+   */
+  async checkQualifiedName(
+    username: string,
+    params: QualifiedNameParams
+  ): Promise<ApiResponse<QualifiedNameResult>> {
+    return this.http.request<QualifiedNameResult>({
+      method: 'GET',
+      path: `/users/${encodeURIComponent(username)}/check-qualified-name`,
+      query: { contains: params.contains, position: params.position },
     });
   }
 

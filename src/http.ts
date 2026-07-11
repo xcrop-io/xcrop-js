@@ -12,7 +12,7 @@ const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
 
 /** SDK version — single source of truth */
-export const SDK_VERSION = '1.0.0';
+export const SDK_VERSION = '1.0.1';
 const USER_AGENT = `@xcrop/sdk/${SDK_VERSION}`;
 
 /**

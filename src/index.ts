@@ -19,7 +19,7 @@ export { TweetsResource } from './resources/tweets.js';
 export { SearchResource, SearchStream } from './resources/search.js';
 export { ListsResource } from './resources/lists.js';
 export { TrendingResource } from './resources/trending.js';
-export { KolResource } from './resources/kol.js';
+export { CommunitiesResource } from './resources/communities.js';
 export { AccountResource } from './resources/account.js';
 export { StreamResource, RealtimeStream } from './resources/stream.js';
 
@@ -37,12 +37,14 @@ export type {
 
   // Data models
   User,
-  UserRelationship,
+  CheckFollowResult,
   Tweet,
   Media,
   UrlEntity,
   List,
   TrendingTopic,
+  TrendingParams,
+  Community,
 
   // Request params
   SearchTweetsParams,
@@ -54,7 +56,15 @@ export type {
   QuoteTweetParams,
   WriteResult,
   InteractionCheckResult,
-  KolTimelineParams,
+  QualifiedAccountParams,
+  QualifiedAccountResult,
+  QualifiedNameParams,
+  QualifiedNameResult,
+  FollowersIdsParams,
+  FollowersIdsMeta,
+  FollowersIdsResponse,
+  CommunityTweetsParams,
+  CommunityMembersParams,
   StreamOptions,
   StreamEvent,
   RequestOptions,

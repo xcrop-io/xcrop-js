@@ -1,7 +1,6 @@
 import type { HttpClient } from '../http.js';
 import type {
   Tweet,
-  User,
   PaginationParams,
   PaginatedResponse,
   ApiResponse,
@@ -51,34 +50,6 @@ export class TweetsResource {
     return this.http.request({
       method: 'GET',
       path: `/tweets/${encodeURIComponent(tweetId)}/quotes`,
-      query: { count: params.count, cursor: params.cursor },
-    });
-  }
-
-  /**
-   * Get users who liked a tweet.
-   */
-  async likers(
-    tweetId: string,
-    params: PaginationParams = {}
-  ): Promise<PaginatedResponse<User>> {
-    return this.http.request({
-      method: 'GET',
-      path: `/tweets/${encodeURIComponent(tweetId)}/likers`,
-      query: { count: params.count, cursor: params.cursor },
-    });
-  }
-
-  /**
-   * Get users who retweeted a tweet.
-   */
-  async retweeters(
-    tweetId: string,
-    params: PaginationParams = {}
-  ): Promise<PaginatedResponse<User>> {
-    return this.http.request({
-      method: 'GET',
-      path: `/tweets/${encodeURIComponent(tweetId)}/retweeters`,
       query: { count: params.count, cursor: params.cursor },
     });
   }
@@ -182,21 +153,6 @@ export class TweetsResource {
   }
 
   // ─── Interaction Checks ───────────────────────────────────────
-
-  /**
-   * Check if a user liked a tweet.
-   * Note: May be unavailable as X has hidden likes.
-   */
-  async checkLike(
-    tweetId: string,
-    username: string
-  ): Promise<ApiResponse<InteractionCheckResult>> {
-    return this.http.request<InteractionCheckResult>({
-      method: 'GET',
-      path: `/tweets/${encodeURIComponent(tweetId)}/check-like`,
-      query: { username },
-    });
-  }
 
   /**
    * Check if a user retweeted a tweet.
