@@ -1,6 +1,6 @@
 # @xcrop/sdk
 
-Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io) — X/Twitter data intelligence platform, covering 39 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
+Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 42 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
 
 - Full TypeScript support with detailed types for all endpoints
 - Auto-retry on rate limits (429) with exponential backoff
@@ -73,7 +73,7 @@ const { data: users } = await client.users.batch(['elonmusk', 'jack', 'VitalikBu
 const { data: rel } = await client.users.checkFollow('elonmusk', 'jack');
 console.log(rel.source_follows_target, rel.target_follows_source);
 
-// Eligibility checks — for airdrop/giveaway gating
+// Eligibility checks for airdrop/giveaway gating
 const { data: qa } = await client.users.checkQualifiedAccount('elonmusk', {
   min_followers: 1000,
   min_age_days: 30,
@@ -293,7 +293,7 @@ const { data: usTrends } = await client.trending.get({ country: 'United States' 
 ## Account Monitoring
 
 Track specific X accounts over time (profile snapshots, tweet activity) via
-the `users` and `search` endpoints above — poll `client.users.get()` /
+the `users` and `search` endpoints above: poll `client.users.get()` /
 `client.users.tweets()` on a schedule, or use `client.stream.connect()` for
 real-time updates.
 
@@ -329,7 +329,7 @@ Per-minute request limits, by plan:
 | Pro | 600 |
 | Pay-as-You-Go | 300 |
 
-Every plan (including the free Starter tier) can call all 39 endpoints — plans
+Every plan (including the free Starter tier) can call all 42 endpoints. Plans
 differ only by monthly credits, the rate limit above, and credit price. On a
 429 the SDK auto-retries with backoff (see `RateLimitError` above for the
 raw `retryAfter`/`remaining`/`limit` fields).
