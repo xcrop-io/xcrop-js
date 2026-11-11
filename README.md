@@ -1,6 +1,6 @@
 # @xcrop/sdk
 
-Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 42 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
+Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 43 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
 
 - Full TypeScript support with detailed types for all endpoints
 - Auto-retry on rate limits (429) with exponential backoff
@@ -329,7 +329,7 @@ Per-minute request limits, by plan:
 | Pro | 600 |
 | Pay-as-You-Go | 300 |
 
-Every plan (including the free Starter tier) can call all 42 endpoints. Plans
+Every plan (including the free Starter tier) can call all 43 endpoints. Plans
 differ only by monthly credits, the rate limit above, and credit price. On a
 429 the SDK auto-retries with backoff (see `RateLimitError` above for the
 raw `retryAfter`/`remaining`/`limit` fields).
