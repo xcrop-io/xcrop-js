@@ -27,6 +27,10 @@ export interface ApiMeta {
   not_found?: string[];
   /** users.batch / batchByIds: items whose lookup failed (retry these). */
   failed?: string[];
+  /** users.batch (usernames): suspended / deactivated accounts among `not_found`. */
+  unavailable?: Array<{ username: string; reason: string }>;
+  /** Trending: when the list was captured (ISO string), if present. */
+  as_of?: string;
   [key: string]: unknown;
 }
 
@@ -40,6 +44,8 @@ export interface ApiErrorResponse {
   code: string;
   /** Extra detail on 404s, e.g. `suspended`, `deactivated`, `not_found`. */
   reason?: string;
+  /** X's own wording on a refused or missing-target write (`X_REFUSED`, write `NOT_FOUND`). */
+  x_reason?: string | null;
 }
 
 /**
@@ -51,6 +57,16 @@ export type XCropErrorCode =
   | 'USER_SUSPENDED'
   | 'USER_UNAVAILABLE'
   | 'BAD_COMMUNITY_ID'
+  /** Write: X refused the action (400); `err.reason` may carry X's wording. */
+  | 'X_REFUSED'
+  /** Write: the connected account cannot DM that user (403). */
+  | 'DM_NOT_ALLOWED'
+  /** Write: no X account connected, call `account.connect()` first (403). */
+  | 'NO_X_ACCOUNT'
+  | 'PERMISSION_DENIED'
+  | 'PLAN_UPGRADE_REQUIRED'
+  /** Write: the connected X session expired, reconnect (401). */
+  | 'SESSION_EXPIRED'
   | 'BAD_TIME_WINDOW'
   | 'BAD_USER_ID'
   | 'BAD_SORT'
@@ -99,7 +115,16 @@ export interface UserListParams extends UserPaginationParams {
 
 export interface UserMentionsParams extends UserPaginationParams, TimeWindowParams {}
 
-export interface TweetQuotesParams extends PaginationParams, TimeWindowParams {}
+export interface TweetQuotesParams extends PaginationParams, TimeWindowParams {
+  /** Set `false` to leave replies out of the quotes. Default true. */
+  include_replies?: boolean;
+}
+
+/** lists.tweets. */
+export interface ListTweetsParams extends PaginationParams, TimeWindowParams {
+  /** Set `false` to leave replies out. Default true. */
+  include_replies?: boolean;
+}
 
 export interface ConversationParams extends PaginationParams, TimeWindowParams {
   /**
@@ -269,9 +294,26 @@ export interface Tweet {
   has_community_notes?: boolean | null;
   place?: TweetPlace | null;
   card?: TweetCard | null;
+  /** Pinned on its author's profile; null when X did not say. */
+  is_pinned?: boolean | null;
+  conversation_controlled?: boolean | null;
+  limited_reply?: boolean | null;
+  /** [start, end] of the visible text, or null. */
+  display_text_range?: [number, number] | null;
+  /** Community the post belongs to, or null. */
+  community?: TweetCommunity | null;
   [key: string]: unknown;
 }
 
+export interface TweetCommunity {
+  id: string | null;
+  name: string | null;
+}
+
+/**
+ * Tweet metrics. On a repost the top-level `Tweet.metrics` are the ORIGINAL
+ * post's counts; the nested `retweeted_tweet` carries them too.
+ */
 export interface TweetMetrics {
   likes: number;
   retweets: number;
@@ -305,6 +347,11 @@ export interface TweetPlace {
   full_name: string | null;
   country: string | null;
   country_code: string | null;
+  id?: string | null;
+  name?: string | null;
+  place_type?: string | null;
+  /** Nested coordinate arrays, as X sends them. */
+  bounding_box?: unknown;
 }
 
 export interface TweetCard {
@@ -320,8 +367,28 @@ export interface Media {
   preview_image_url?: string;
   width?: number;
   height?: number;
-  alt_text?: string;
+  alt_text?: string | null;
+  media_key?: string | null;
+  display_url?: string | null;
+  expanded_url?: string | null;
+  video_url?: string | null;
+  /** Video / GIF details, null for photos. */
+  video?: MediaVideo | null;
   [key: string]: unknown;
+}
+
+export interface MediaVideo {
+  duration_ms: number | null;
+  /** [width, height] ratio. */
+  aspect_ratio: [number, number] | null;
+  variants: MediaVideoVariant[];
+}
+
+export interface MediaVideoVariant {
+  /** null on the m3u8 (HLS) variant. */
+  bitrate: number | null;
+  content_type: string | null;
+  url: string | null;
 }
 
 export interface UrlEntity {
@@ -401,10 +468,11 @@ export interface Community {
   topic?: { id: string | null; name: string | null } | null;
   search_tags?: string[];
   banner_image?: string | null;
-  rules?: Array<{ name: string; description: string }>;
+  rules?: Array<{ id?: string | null; name: string; description: string }>;
   creator?: User | null;
   admin?: User | null;
-  members_preview?: unknown[];
+  /** User objects (avatar URL strings before 1.2.0; fixed, the route went live the same day). */
+  members_preview?: User[];
   /** https://x.com/i/communities/<id> */
   url?: string | null;
   [key: string]: unknown;
@@ -464,6 +532,14 @@ export interface AccountCredits {
 
 export interface CreateTweetParams {
   text: string;
+  /** Media ids from `media.upload()`. */
+  media_ids?: string[];
+  /**
+   * Post into a community the connected account has joined. A STRING of
+   * digits: ids exceed 2^53, a number is rejected (BAD_COMMUNITY_ID).
+   * Community posts are limited to 280 characters.
+   */
+  community_id?: string;
 }
 
 export interface ReplyTweetParams {
@@ -480,6 +556,76 @@ export interface WriteResult {
   success: boolean;
   tweet_id?: string;
   [key: string]: unknown;
+}
+
+/** Every write below answers `{ success: true, data, meta }`; `already` = X said it was already in that state. */
+export interface TweetToggleResult {
+  tweet_id: string;
+  already: boolean;
+}
+
+export interface BookmarkResult extends TweetToggleResult {
+  bookmarked: boolean;
+}
+
+export interface PinResult extends TweetToggleResult {
+  pinned: boolean;
+}
+
+export interface UserToggleResult {
+  user_id: string;
+  /** null when the target was addressed as `id:<digits>`. */
+  username: string | null;
+  already: boolean;
+}
+
+export interface MuteResult extends UserToggleResult {
+  muted: boolean;
+}
+
+export interface BlockResult extends UserToggleResult {
+  blocked: boolean;
+}
+
+/** At least one field. Limits: name 50, description 160, location 30, url 100 characters. */
+export interface UpdateProfileParams {
+  name?: string;
+  description?: string;
+  location?: string;
+  url?: string;
+}
+
+export interface UpdateProfileResult {
+  /** Names of the fields that were changed. */
+  updated: string[];
+}
+
+export interface SendDmParams {
+  /** Recipient handle (or `id:<digits>`). Give this or `user_id`. */
+  username?: string;
+  /** Recipient numeric X user id. */
+  user_id?: string;
+  /** 1 to 10000 characters. */
+  text: string;
+}
+
+export interface SendDmResult {
+  recipient_id: string;
+  username: string | null;
+  message_id: string | null;
+  conversation_id: string | null;
+}
+
+export interface UploadMediaParams {
+  /** Base64 of the file (a `data:...;base64,` prefix is accepted). Max 5 MB decoded. */
+  base64: string;
+  /** image/jpeg (default), image/png, image/webp, image/gif or video/mp4. */
+  mime_type?: 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif' | 'video/mp4';
+}
+
+export interface UploadMediaResult {
+  /** Pass in `tweets.create({ media_ids })`. */
+  media_id: string | null;
 }
 
 // ─── Interaction Check ──────────────────────────────────────────

@@ -3,6 +3,8 @@ import type {
   ConnectAccountParams,
   AccountStatus,
   AccountCredits,
+  UpdateProfileParams,
+  UpdateProfileResult,
   ApiResponse,
 } from '../types.js';
 
@@ -55,6 +57,28 @@ export class AccountResource {
     return this.http.request<AccountCredits>({
       method: 'GET',
       path: '/account/credits',
+    });
+  }
+
+  /**
+   * Edit the connected account's profile. Only the fields you send change
+   * (name 50, description 160, location 30, url 100 characters; at least one).
+   * Requires a connected X account and a paid plan (100 credits).
+   */
+  async updateProfile(
+    params: UpdateProfileParams
+  ): Promise<ApiResponse<UpdateProfileResult>> {
+    const body: Record<string, unknown> = {};
+    for (const key of ['name', 'description', 'location', 'url'] as const) {
+      if (params[key] !== undefined) body[key] = params[key];
+    }
+    if (Object.keys(body).length === 0) {
+      throw new Error('Send at least one of: name, description, location, url');
+    }
+    return this.http.request<UpdateProfileResult>({
+      method: 'POST',
+      path: '/account/profile',
+      body,
     });
   }
 

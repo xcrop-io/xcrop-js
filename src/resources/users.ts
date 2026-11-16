@@ -16,6 +16,8 @@ import type {
   UserPaginationParams,
   UserListParams,
   UserMentionsParams,
+  MuteResult,
+  BlockResult,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -283,6 +285,48 @@ export class UsersResource {
     return this.http.request<{ success: boolean }>({
       method: 'DELETE',
       path: `/users/${encodeURIComponent(username)}/follow`,
+    });
+  }
+
+  /**
+   * Mute a user with the connected X account (100 credits). Pass a username or
+   * `id:<digits>` (or `{ user_id }`). `already` is true when already muted.
+   */
+  async mute(username: string, params: UserLookupParams = {}): Promise<ApiResponse<MuteResult>> {
+    return this.http.request<MuteResult>({
+      method: 'POST',
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/mute`,
+    });
+  }
+
+  /**
+   * Unmute a user. Requires a connected X account.
+   */
+  async unmute(username: string, params: UserLookupParams = {}): Promise<ApiResponse<MuteResult>> {
+    return this.http.request<MuteResult>({
+      method: 'DELETE',
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/mute`,
+    });
+  }
+
+  /**
+   * Block a user with the connected X account (100 credits). Pass a username or
+   * `id:<digits>` (or `{ user_id }`).
+   */
+  async block(username: string, params: UserLookupParams = {}): Promise<ApiResponse<BlockResult>> {
+    return this.http.request<BlockResult>({
+      method: 'POST',
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/block`,
+    });
+  }
+
+  /**
+   * Unblock a user. Requires a connected X account.
+   */
+  async unblock(username: string, params: UserLookupParams = {}): Promise<ApiResponse<BlockResult>> {
+    return this.http.request<BlockResult>({
+      method: 'DELETE',
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/block`,
     });
   }
 }

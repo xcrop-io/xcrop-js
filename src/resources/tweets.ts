@@ -12,6 +12,8 @@ import type {
   User,
   ConversationParams,
   TweetQuotesParams,
+  BookmarkResult,
+  PinResult,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -52,7 +54,7 @@ export class TweetsResource {
   }
 
   /**
-   * Get quote tweets of a tweet.
+   * Get quote tweets of a tweet. `include_replies: false` leaves replies out.
    */
   async quotes(
     tweetId: string,
@@ -66,6 +68,7 @@ export class TweetsResource {
         cursor: params.cursor,
         since: params.since,
         until: params.until,
+        include_replies: params.include_replies,
       },
     });
   }
@@ -99,12 +102,24 @@ export class TweetsResource {
 
   /**
    * Create a new tweet. Requires a connected X account.
+   *
+   * `media_ids` come from `media.upload()`. `community_id` posts into a
+   * community the account has joined: a STRING of digits (a number is
+   * rejected), and the text is limited to 280 characters.
    */
   async create(params: CreateTweetParams): Promise<ApiResponse<WriteResult>> {
+    const body: Record<string, unknown> = { text: params.text };
+    if (params.media_ids !== undefined) body.media_ids = params.media_ids;
+    if (params.community_id !== undefined) {
+      if (typeof params.community_id !== 'string') {
+        throw new Error('community_id must be a string of digits (ids exceed 2^53)');
+      }
+      body.community_id = params.community_id;
+    }
     return this.http.request<WriteResult>({
       method: 'POST',
       path: '/tweets/create',
-      body: { text: params.text },
+      body,
     });
   }
 
@@ -182,6 +197,48 @@ export class TweetsResource {
     });
   }
 
+  /**
+   * Bookmark a tweet. Requires a connected X account and a paid plan
+   * (100 credits). `already` is true when it was already bookmarked.
+   */
+  async bookmark(tweetId: string): Promise<ApiResponse<BookmarkResult>> {
+    return this.http.request<BookmarkResult>({
+      method: 'POST',
+      path: `/tweets/${encodeURIComponent(tweetId)}/bookmark`,
+    });
+  }
+
+  /**
+   * Remove a bookmark. Requires a connected X account.
+   */
+  async unbookmark(tweetId: string): Promise<ApiResponse<BookmarkResult>> {
+    return this.http.request<BookmarkResult>({
+      method: 'DELETE',
+      path: `/tweets/${encodeURIComponent(tweetId)}/bookmark`,
+    });
+  }
+
+  /**
+   * Pin one of the connected account's own tweets to its profile. Another
+   * account's tweet throws `XCropError` 400 `X_REFUSED`.
+   */
+  async pin(tweetId: string): Promise<ApiResponse<PinResult>> {
+    return this.http.request<PinResult>({
+      method: 'POST',
+      path: `/tweets/${encodeURIComponent(tweetId)}/pin`,
+    });
+  }
+
+  /**
+   * Unpin a tweet from the connected account's profile.
+   */
+  async unpin(tweetId: string): Promise<ApiResponse<PinResult>> {
+    return this.http.request<PinResult>({
+      method: 'DELETE',
+      path: `/tweets/${encodeURIComponent(tweetId)}/pin`,
+    });
+  }
+
   // ─── Interaction Checks ───────────────────────────────────────
 
   /**
@@ -229,19 +286,19 @@ export class TweetsResource {
 
 // ─── Pagination Helpers ──────────────────────────────────────────
 
-type TweetPaginatedMethod<T> = (
+type TweetPaginatedMethod<T, P extends PaginationParams = PaginationParams> = (
   id: string,
-  params: PaginationParams
+  params: P
 ) => Promise<PaginatedResponse<T>>;
 
 /**
  * Async generator that auto-paginates a tweet-based paginated endpoint.
  * @param maxPages Safety limit to prevent infinite loops (default 100).
  */
-export async function* paginateTweet<T>(
-  method: TweetPaginatedMethod<T>,
+export async function* paginateTweet<T, P extends PaginationParams = PaginationParams>(
+  method: TweetPaginatedMethod<T, P>,
   id: string,
-  params: PaginationParams = {},
+  params: P = {} as P,
   maxPages: number = DEFAULT_MAX_PAGES
 ): AsyncGenerator<T, void, undefined> {
   let cursor: string | undefined = params.cursor;

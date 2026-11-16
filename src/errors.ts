@@ -6,8 +6,9 @@ export class XCropError extends Error {
   public readonly code: string;
   public readonly headers: Record<string, string>;
   /**
-   * Extra detail the API adds to some errors (404s), e.g. `suspended`,
-   * `deactivated`, `not_found`. null when the response carried none.
+   * Extra detail the API adds to some errors, e.g. `suspended`, `deactivated`,
+   * `not_found` (404s), or X's own wording on a refused write (`x_reason`).
+   * null when the response carried none.
    */
   public readonly reason: string | null;
 
@@ -32,8 +33,9 @@ export class XCropError extends Error {
  * Thrown when authentication fails (401).
  */
 export class AuthError extends XCropError {
-  constructor(message: string, headers: Record<string, string> = {}) {
-    super(message, 401, 'AUTH_ERROR', headers);
+  /** `code` is the API's code when it sent one, e.g. `SESSION_EXPIRED` (reconnect the X account). Default `AUTH_ERROR`. */
+  constructor(message: string, headers: Record<string, string> = {}, code: string = 'AUTH_ERROR', reason: string | null = null) {
+    super(message, 401, code, headers, reason);
     this.name = 'AuthError';
   }
 }
@@ -81,10 +83,13 @@ export class NotFoundError extends XCropError {
 
 /**
  * Thrown when the request is forbidden (403).
+ *
+ * `code` is the API's code when it sent one: `PERMISSION_DENIED`,
+ * `PLAN_UPGRADE_REQUIRED`, `NO_X_ACCOUNT` or `DM_NOT_ALLOWED`. Default `FORBIDDEN`.
  */
 export class ForbiddenError extends XCropError {
-  constructor(message: string, headers: Record<string, string> = {}) {
-    super(message, 403, 'FORBIDDEN', headers);
+  constructor(message: string, headers: Record<string, string> = {}, code: string = 'FORBIDDEN', reason: string | null = null) {
+    super(message, 403, code, headers, reason);
     this.name = 'ForbiddenError';
   }
 }

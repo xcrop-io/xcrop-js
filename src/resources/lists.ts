@@ -4,7 +4,7 @@ import type {
   User,
   PaginationParams,
   PaginatedResponse,
-  TimeWindowParams,
+  ListTweetsParams,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -13,11 +13,11 @@ export class ListsResource {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Get tweets from a list.
+   * Get tweets from a list. `include_replies: false` leaves replies out.
    */
   async tweets(
     listId: string,
-    params: PaginationParams & TimeWindowParams = {}
+    params: ListTweetsParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
@@ -27,6 +27,7 @@ export class ListsResource {
         cursor: params.cursor,
         since: params.since,
         until: params.until,
+        include_replies: params.include_replies,
       },
     });
   }
@@ -64,10 +65,10 @@ export class ListsResource {
  * Async generator that auto-paginates a list-based paginated endpoint.
  * @param maxPages Safety limit to prevent infinite loops (default 100).
  */
-export async function* paginateList<T>(
-  method: (listId: string, params: PaginationParams) => Promise<PaginatedResponse<T>>,
+export async function* paginateList<T, P extends PaginationParams = PaginationParams>(
+  method: (listId: string, params: P) => Promise<PaginatedResponse<T>>,
   listId: string,
-  params: PaginationParams = {},
+  params: P = {} as P,
   maxPages: number = DEFAULT_MAX_PAGES
 ): AsyncGenerator<T, void, undefined> {
   let cursor: string | undefined = params.cursor;

@@ -7,11 +7,15 @@ import { TrendingResource } from './resources/trending.js';
 import { CommunitiesResource } from './resources/communities.js';
 import { AccountResource } from './resources/account.js';
 import { StreamResource } from './resources/stream.js';
+import { DmResource } from './resources/dm.js';
+import { MediaResource } from './resources/media.js';
 import type {
   XCropOptions,
   PaginationParams,
   CommunityTweetsParams,
   CommunityMembersParams,
+  TweetQuotesParams,
+  ListTweetsParams,
   Tweet,
   User,
 } from './types.js';
@@ -29,8 +33,8 @@ interface PaginateHelpers {
   userMedia(username: string, params?: PaginationParams): AsyncGenerator<Tweet, void, undefined>;
   userVerifiedFollowers(username: string, params?: PaginationParams): AsyncGenerator<User, void, undefined>;
   tweetConversation(tweetId: string, params?: PaginationParams): AsyncGenerator<Tweet, void, undefined>;
-  tweetQuotes(tweetId: string, params?: PaginationParams): AsyncGenerator<Tweet, void, undefined>;
-  listTweets(listId: string, params?: PaginationParams): AsyncGenerator<Tweet, void, undefined>;
+  tweetQuotes(tweetId: string, params?: TweetQuotesParams): AsyncGenerator<Tweet, void, undefined>;
+  listTweets(listId: string, params?: ListTweetsParams): AsyncGenerator<Tweet, void, undefined>;
   listMembers(listId: string, params?: PaginationParams): AsyncGenerator<User, void, undefined>;
   listSubscribers(listId: string, params?: PaginationParams): AsyncGenerator<User, void, undefined>;
   communityTweets(communityId: string, params?: CommunityTweetsParams): AsyncGenerator<Tweet, void, undefined>;
@@ -67,6 +71,10 @@ export class XCrop {
   public readonly account: AccountResource;
   /** Real-time SSE stream. */
   public readonly stream: StreamResource;
+  /** Direct messages (write, needs a connected X account). */
+  public readonly dm: DmResource;
+  /** Media upload for tweets (write, needs a connected X account). */
+  public readonly media: MediaResource;
 
   /** Pagination helper — auto-iterate through all pages. */
   public readonly paginate: PaginateHelpers;
@@ -87,6 +95,8 @@ export class XCrop {
     this.communities = new CommunitiesResource(this.http);
     this.account = new AccountResource(this.http);
     this.stream = new StreamResource(this.http);
+    this.dm = new DmResource(this.http);
+    this.media = new MediaResource(this.http);
 
     // Build users.tweets with nested .paginate()
     const boundTweets = usersBase.tweets.bind(usersBase);
@@ -115,10 +125,10 @@ export class XCrop {
         paginateUser<User>(usersBase.verifiedFollowers.bind(usersBase), username, params),
       tweetConversation: (tweetId: string, params?: PaginationParams) =>
         paginateTweet<Tweet>(this.tweets.conversation.bind(this.tweets), tweetId, params),
-      tweetQuotes: (tweetId: string, params?: PaginationParams) =>
-        paginateTweet<Tweet>(this.tweets.quotes.bind(this.tweets), tweetId, params),
-      listTweets: (listId: string, params?: PaginationParams) =>
-        paginateList<Tweet>(this.lists.tweets.bind(this.lists), listId, params),
+      tweetQuotes: (tweetId: string, params?: TweetQuotesParams) =>
+        paginateTweet<Tweet, TweetQuotesParams>(this.tweets.quotes.bind(this.tweets), tweetId, params),
+      listTweets: (listId: string, params?: ListTweetsParams) =>
+        paginateList<Tweet, ListTweetsParams>(this.lists.tweets.bind(this.lists), listId, params),
       listMembers: (listId: string, params?: PaginationParams) =>
         paginateList<User>(this.lists.members.bind(this.lists), listId, params),
       listSubscribers: (listId: string, params?: PaginationParams) =>

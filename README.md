@@ -1,6 +1,6 @@
 # @xcrop/sdk
 
-Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 47 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
+Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 58 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
 
 - Full TypeScript support with detailed types for all endpoints
 - Auto-retry on rate limits (429) with exponential backoff
@@ -71,6 +71,10 @@ const { data: followingIds } = await client.users.followingIds('elonmusk', { cou
 const { data: users } = await client.users.batch(['elonmusk', 'jack', 'VitalikButerin']);
 const { data: byId, meta } = await client.users.batchByIds(['44196397', '12']);
 console.log(meta.not_found); // ids X did not return
+// users.batch (usernames): meta.unavailable lists suspended / deactivated accounts among not_found
+
+// Replies return exactly `count` rows. `next_cursor` can be an opaque string
+// starting `xo1.`: pass it back unchanged. Followers / following are newest first.
 
 // Any user route also takes a numeric id: `id:<digits>` or `user_id`
 await client.users.get('id:44196397');
@@ -136,6 +140,17 @@ Tweets now carry `url`, `lang`, `source`, `in_reply_to`, `quoted_tweet`,
 fields (`followers`, `verified`, `verified_type`, `profile_image`). `text` is
 the full text of long posts.
 
+Also on tweets (all nullable): `is_pinned`, `conversation_controlled`,
+`limited_reply`, `display_text_range` (`[start, end]`) and `community`
+(`{ id, name }`). `author` adds `description`, `location`, `following`,
+`tweets_count`, `likes_count`, `media_count`, `listed`, `created_at`,
+`banner_image`, `can_dm`, `automated` and `pinned_tweet_ids`. Each `media[]`
+item adds `alt_text`, `media_key`, `display_url`, `expanded_url`, `width`,
+`height` and `video` (`{ duration_ms, aspect_ratio, variants }`; the m3u8
+variant has `bitrate: null`). `place` adds `id`, `name`, `place_type` and
+`bounding_box`. On a repost the top-level `metrics` are the original post's
+counts.
+
 ## Communities
 
 X Communities data. `count` is a minimum on members and moderators: X serves
@@ -147,6 +162,9 @@ const { data: tweets } = await client.communities.tweets('1708766018985501165', 
 const { data: members } = await client.communities.members('1708766018985501165', { sort: 'name' });
 const { data: mods } = await client.communities.moderators('1708766018985501165', { sort: 'default' });
 ```
+
+`rules[]` items carry an `id`, and `members_preview` is an array of user
+objects.
 
 ## Search
 
@@ -299,6 +317,58 @@ await client.users.follow('elonmusk');
 await client.users.unfollow('elonmusk');
 ```
 
+## Write API
+
+Every call below needs a connected X account (`client.account.connect()`), a
+key with write permission and a paid plan. Each costs 100 credits flat and
+answers `{ success: true, data, meta }`. `already: true` means X said the
+state was already what you asked for.
+
+```typescript
+// Bookmark / pin (pin works on your own posts only: another account's post
+// throws XCropError 400 X_REFUSED)
+await client.tweets.bookmark('1234567890');   // data: { tweet_id, bookmarked: true, already }
+await client.tweets.unbookmark('1234567890'); // bookmarked: false
+await client.tweets.pin('1234567890');        // data: { tweet_id, pinned: true, already }
+await client.tweets.unpin('1234567890');
+
+// Mute / block by username or `id:<digits>`
+await client.users.mute('someuser');          // data: { user_id, username, muted: true, already }
+await client.users.unmute('id:44196397');
+await client.users.block('someuser');         // data: { user_id, username, blocked: true, already }
+await client.users.unblock('someuser');
+
+// Edit your profile (name 50, description 160, location 30, url 100 chars; at least one)
+await client.account.updateProfile({ name: 'New name', description: 'New bio' }); // data: { updated: ['name', 'description'] }
+
+// Send a DM (username or user_id)
+const { data: dm } = await client.dm.send({ username: 'someuser', text: 'Hello!' });
+console.log(dm.message_id, dm.conversation_id);
+
+// Upload media (image/jpeg, image/png, image/webp, image/gif, video/mp4; max 5 MB decoded)
+import { readFileSync } from 'node:fs';
+const { data: media } = await client.media.upload({
+  base64: readFileSync('./photo.jpg').toString('base64'),
+  mime_type: 'image/jpeg',
+});
+await client.tweets.create({ text: 'With a picture', media_ids: [media.media_id!] });
+
+// Post into a community you have joined. community_id is a STRING of digits
+// (a number is rejected with BAD_COMMUNITY_ID); community posts max 280 chars.
+await client.tweets.create({ text: 'Hello community', community_id: '1493446837214187523' });
+
+// Leave replies out of quotes and list tweets (default true)
+await client.tweets.quotes('1234567890', { include_replies: false });
+await client.lists.tweets('12345', { include_replies: false });
+```
+
+Write errors carry a `code`: `X_REFUSED` (400, X refused the action; the
+wording is in `err.reason`), `NOT_FOUND` (404, the post or user does not
+exist; X's wording in `err.reason`), `USER_SUSPENDED` (404), `DM_NOT_ALLOWED`
+(403), `NO_X_ACCOUNT` (403), `PERMISSION_DENIED` (403), `PLAN_UPGRADE_REQUIRED`
+(403), `SESSION_EXPIRED` (401, reconnect the account) and `BAD_COMMUNITY_ID`
+(400).
+
 ## Interaction Checks
 
 Check if a user interacted with a specific tweet (no connected account needed):
@@ -326,6 +396,7 @@ const { data: subs } = await client.lists.subscribers('12345');
 const { data: trends } = await client.trending.get();
 const { data: usTrends } = await client.trending.get({ country: 'United States' });
 // Each row has a 1-based `rank`; `volume` is always null (X no longer publishes counts)
+// `meta.as_of` (string) may be present
 ```
 
 ## Account Monitoring
@@ -370,7 +441,11 @@ Error codes returned in `err.code` (the list can grow, keep a fallback branch):
 `NOT_FOUND`, `USER_SUSPENDED`, `USER_UNAVAILABLE` (with `err.reason`),
 `BAD_COMMUNITY_ID`, `BAD_TIME_WINDOW`, `BAD_USER_ID`, `BAD_SORT`, `BAD_CURSOR`
 and `INTERNAL_ERROR` (500). Suspended and unavailable accounts arrive as a
-`NotFoundError` (404) with the matching code.
+`NotFoundError` (404) with the matching code. Write codes (`X_REFUSED`,
+`DM_NOT_ALLOWED`, `NO_X_ACCOUNT`, `PERMISSION_DENIED`, `PLAN_UPGRADE_REQUIRED`,
+`SESSION_EXPIRED`) are listed in the Write API section. Since 1.2.0 a 401 or 403
+error carries the API's own code when it sent one (before, always `AUTH_ERROR`
+/ `FORBIDDEN`), and `err.reason` also holds X's `x_reason` on writes.
 
 ## Rate Limits
 
@@ -383,7 +458,7 @@ Per-minute request limits, by plan:
 | Pro | 600 |
 | Pay-as-You-Go | 300 |
 
-Every plan (including the free Starter tier) can call all 47 endpoints. Plans
+Every plan (including the free Starter tier) can call all 58 endpoints. Plans
 differ only by monthly credits, the rate limit above, and credit price. On a
 429 the SDK auto-retries with backoff (see `RateLimitError` above for the
 raw `retryAfter`/`remaining`/`limit` fields).

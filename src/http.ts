@@ -12,7 +12,7 @@ const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
 
 /** SDK version — single source of truth */
-export const SDK_VERSION = '1.1.0';
+export const SDK_VERSION = '1.2.0';
 const USER_AGENT = `@xcrop/sdk/${SDK_VERSION}`;
 
 /**
@@ -81,7 +81,7 @@ export class HttpClient {
         }
 
         // Parse error body
-        let errorBody: { error?: string; code?: string; reason?: string } = {};
+        let errorBody: { error?: string; code?: string; reason?: string; x_reason?: string | null } = {};
         try {
           errorBody = await response.json();
         } catch {
@@ -93,13 +93,13 @@ export class HttpClient {
 
         // Non-retryable errors
         if (response.status === 401) {
-          throw new AuthError(errorMessage, responseHeaders);
+          throw new AuthError(errorMessage, responseHeaders, errorBody.code, errorReason(errorBody));
         }
         if (response.status === 403) {
-          throw new ForbiddenError(errorMessage, responseHeaders);
+          throw new ForbiddenError(errorMessage, responseHeaders, errorBody.code, errorReason(errorBody));
         }
         if (response.status === 404) {
-          throw new NotFoundError(errorMessage, responseHeaders, errorBody.code, errorBody.reason ?? null);
+          throw new NotFoundError(errorMessage, responseHeaders, errorBody.code, errorReason(errorBody));
         }
 
         // Retryable: 429 rate limit
@@ -121,11 +121,11 @@ export class HttpClient {
             await sleep(backoffDelay(attempt));
             continue;
           }
-          throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorBody.reason ?? null);
+          throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorReason(errorBody));
         }
 
         // Other 4xx — not retryable
-        throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorBody.reason ?? null);
+        throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorReason(errorBody));
       } catch (err) {
         if (err instanceof XCropError) throw err;
 
@@ -209,7 +209,7 @@ export class HttpClient {
         }
 
         const responseHeaders = extractHeaders(response.headers);
-        let errorBody: { error?: string; code?: string; reason?: string } = {};
+        let errorBody: { error?: string; code?: string; reason?: string; x_reason?: string | null } = {};
         try {
           errorBody = await response.json();
         } catch {
@@ -218,9 +218,9 @@ export class HttpClient {
         const msg = errorBody.error ?? `HTTP ${response.status}`;
 
         // Non-retryable
-        if (response.status === 401) throw new AuthError(msg, responseHeaders);
-        if (response.status === 403) throw new ForbiddenError(msg, responseHeaders);
-        if (response.status === 404) throw new NotFoundError(msg, responseHeaders, errorBody.code, errorBody.reason ?? null);
+        if (response.status === 401) throw new AuthError(msg, responseHeaders, errorBody.code, errorReason(errorBody));
+        if (response.status === 403) throw new ForbiddenError(msg, responseHeaders, errorBody.code, errorReason(errorBody));
+        if (response.status === 404) throw new NotFoundError(msg, responseHeaders, errorBody.code, errorReason(errorBody));
 
         // Retryable: 429
         if (response.status === 429) {
@@ -241,7 +241,7 @@ export class HttpClient {
           }
         }
 
-        throw new XCropError(msg, response.status, errorBody.code ?? 'ERROR', responseHeaders, errorBody.reason ?? null);
+        throw new XCropError(msg, response.status, errorBody.code ?? 'ERROR', responseHeaders, errorReason(errorBody));
       } catch (err) {
         if (err instanceof XCropError) throw err;
 
@@ -291,6 +291,11 @@ export class HttpClient {
     }
     return url.toString();
   }
+}
+
+/** `reason` (404 detail) or `x_reason` (X's wording on a refused write). */
+function errorReason(body: { reason?: string; x_reason?: string | null }): string | null {
+  return body.reason ?? body.x_reason ?? null;
 }
 
 function extractHeaders(headers: Headers): Record<string, string> {

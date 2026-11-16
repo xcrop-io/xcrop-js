@@ -22,6 +22,8 @@ export { TrendingResource } from './resources/trending.js';
 export { CommunitiesResource } from './resources/communities.js';
 export { AccountResource } from './resources/account.js';
 export { StreamResource, RealtimeStream } from './resources/stream.js';
+export { DmResource } from './resources/dm.js';
+export { MediaResource } from './resources/media.js';
 
 // Types
 export type {
@@ -47,7 +49,10 @@ export type {
   TweetEdit,
   TweetPlace,
   TweetCard,
+  TweetCommunity,
   Media,
+  MediaVideo,
+  MediaVideoVariant,
   UrlEntity,
   List,
   TrendingTopic,
@@ -64,6 +69,19 @@ export type {
   ReplyTweetParams,
   QuoteTweetParams,
   WriteResult,
+  TweetToggleResult,
+  BookmarkResult,
+  PinResult,
+  UserToggleResult,
+  MuteResult,
+  BlockResult,
+  UpdateProfileParams,
+  UpdateProfileResult,
+  SendDmParams,
+  SendDmResult,
+  UploadMediaParams,
+  UploadMediaResult,
+  ListTweetsParams,
   InteractionCheckResult,
   QualifiedAccountParams,
   QualifiedAccountResult,
