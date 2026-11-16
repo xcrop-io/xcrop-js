@@ -4,6 +4,7 @@ import type {
   User,
   PaginationParams,
   PaginatedResponse,
+  TimeWindowParams,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -16,12 +17,17 @@ export class ListsResource {
    */
   async tweets(
     listId: string,
-    params: PaginationParams = {}
+    params: PaginationParams & TimeWindowParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
       path: `/lists/${encodeURIComponent(listId)}/tweets`,
-      query: { count: params.count, cursor: params.cursor },
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        since: params.since,
+        until: params.until,
+      },
     });
   }
 

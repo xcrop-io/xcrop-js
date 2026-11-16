@@ -12,20 +12,37 @@ import type {
   QualifiedNameResult,
   FollowersIdsParams,
   FollowersIdsResponse,
+  UserLookupParams,
+  UserPaginationParams,
+  UserListParams,
+  UserMentionsParams,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
+
+/**
+ * Path segment for a user route: the username, or `id:<user_id>` when only a numeric id was given (an empty segment
+ * would hit `/users/` and never reach the user route).
+ */
+function userSeg(username: string, userId?: string | number): string {
+  return username ? username : userId != null && String(userId) !== '' ? `id:${userId}` : username;
+}
 
 export class UsersResource {
   constructor(private readonly http: HttpClient) {}
 
   /**
-   * Get a user profile by username.
+   * Get a user profile by username. Pass `id:<digits>` as the username (or
+   * `{ user_id }`) to look a user up by numeric id.
    */
-  async get(username: string): Promise<ApiResponse<User>> {
+  async get(
+    username: string,
+    params: UserLookupParams = {}
+  ): Promise<ApiResponse<User>> {
     return this.http.request<User>({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}`,
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}`,
+      query: { user_id: params.user_id },
     });
   }
 
@@ -34,12 +51,12 @@ export class UsersResource {
    */
   async tweets(
     username: string,
-    params: PaginationParams = {}
+    params: UserPaginationParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/tweets`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/tweets`,
+      query: { count: params.count, cursor: params.cursor, user_id: params.user_id },
     });
   }
 
@@ -48,26 +65,40 @@ export class UsersResource {
    */
   async mentions(
     username: string,
-    params: PaginationParams = {}
+    params: UserMentionsParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/mentions`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/mentions`,
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        user_id: params.user_id,
+        since: params.since,
+        until: params.until,
+      },
     });
   }
 
   /**
-   * Get a user's followers.
+   * Get a user's followers. With `include_unavailable: true`, suspended or
+   * deactivated accounts also come back as rows `{ id, unavailable: true,
+   * unavailable_reason, ...every other field null }` (not billed). Same
+   * option on `following()` and `verifiedFollowers()`.
    */
   async followers(
     username: string,
-    params: PaginationParams = {}
+    params: UserListParams = {}
   ): Promise<PaginatedResponse<User>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/followers`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/followers`,
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        user_id: params.user_id,
+        include_unavailable: params.include_unavailable,
+      },
     });
   }
 
@@ -76,12 +107,17 @@ export class UsersResource {
    */
   async following(
     username: string,
-    params: PaginationParams = {}
+    params: UserListParams = {}
   ): Promise<PaginatedResponse<User>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/following`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/following`,
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        user_id: params.user_id,
+        include_unavailable: params.include_unavailable,
+      },
     });
   }
 
@@ -90,12 +126,12 @@ export class UsersResource {
    */
   async replies(
     username: string,
-    params: PaginationParams = {}
+    params: UserPaginationParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/replies`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/replies`,
+      query: { count: params.count, cursor: params.cursor, user_id: params.user_id },
     });
   }
 
@@ -104,12 +140,12 @@ export class UsersResource {
    */
   async media(
     username: string,
-    params: PaginationParams = {}
+    params: UserPaginationParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/media`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/media`,
+      query: { count: params.count, cursor: params.cursor, user_id: params.user_id },
     });
   }
 
@@ -118,12 +154,17 @@ export class UsersResource {
    */
   async verifiedFollowers(
     username: string,
-    params: PaginationParams = {}
+    params: UserListParams = {}
   ): Promise<PaginatedResponse<User>> {
     return this.http.request({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/verified-followers`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/verified-followers`,
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        user_id: params.user_id,
+        include_unavailable: params.include_unavailable,
+      },
     });
   }
 
@@ -137,8 +178,23 @@ export class UsersResource {
   ): Promise<FollowersIdsResponse> {
     return this.http.request<string[]>({
       method: 'GET',
-      path: `/users/${encodeURIComponent(username)}/followers-ids`,
-      query: { count: params.count, cursor: params.cursor },
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/followers-ids`,
+      query: { count: params.count, cursor: params.cursor, user_id: params.user_id },
+    }) as unknown as Promise<FollowersIdsResponse>;
+  }
+
+  /**
+   * Get up to 5000 raw IDs of the accounts a user follows (no profile
+   * metadata). Mirror of `followersIds()`.
+   */
+  async followingIds(
+    username: string,
+    params: FollowersIdsParams = {}
+  ): Promise<FollowersIdsResponse> {
+    return this.http.request<string[]>({
+      method: 'GET',
+      path: `/users/${encodeURIComponent(userSeg(username, params.user_id))}/following-ids`,
+      query: { count: params.count, cursor: params.cursor, user_id: params.user_id },
     }) as unknown as Promise<FollowersIdsResponse>;
   }
 
@@ -150,6 +206,19 @@ export class UsersResource {
       method: 'POST',
       path: '/users/batch',
       body: { usernames },
+    });
+  }
+
+  /**
+   * Batch lookup multiple users by numeric id (max 100). Ids are sent as
+   * strings; numbers above 2^53 lose precision in JavaScript, so pass those as
+   * strings. Ids X does not return are listed in `meta.not_found`.
+   */
+  async batchByIds(ids: Array<string | number>): Promise<ApiResponse<User[]>> {
+    return this.http.request<User[]>({
+      method: 'POST',
+      path: '/users/batch',
+      body: { ids: ids.map((id) => String(id)) },
     });
   }
 

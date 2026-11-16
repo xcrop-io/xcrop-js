@@ -61,7 +61,7 @@ export class XCrop {
   public readonly lists: ListsResource;
   /** Trending topics. */
   public readonly trending: TrendingResource;
-  /** X Communities data (beta — may return 503 while under development). */
+  /** X Communities data (details, tweets, members, moderators). */
   public readonly communities: CommunitiesResource;
   /** X account connection management for write operations. */
   public readonly account: AccountResource;

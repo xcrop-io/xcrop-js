@@ -12,7 +12,7 @@ const DEFAULT_TIMEOUT = 30_000;
 const DEFAULT_MAX_RETRIES = 3;
 
 /** SDK version — single source of truth */
-export const SDK_VERSION = '1.0.1';
+export const SDK_VERSION = '1.1.0';
 const USER_AGENT = `@xcrop/sdk/${SDK_VERSION}`;
 
 /**
@@ -81,7 +81,7 @@ export class HttpClient {
         }
 
         // Parse error body
-        let errorBody: { error?: string; code?: string } = {};
+        let errorBody: { error?: string; code?: string; reason?: string } = {};
         try {
           errorBody = await response.json();
         } catch {
@@ -99,7 +99,7 @@ export class HttpClient {
           throw new ForbiddenError(errorMessage, responseHeaders);
         }
         if (response.status === 404) {
-          throw new NotFoundError(errorMessage, responseHeaders);
+          throw new NotFoundError(errorMessage, responseHeaders, errorBody.code, errorBody.reason ?? null);
         }
 
         // Retryable: 429 rate limit
@@ -121,11 +121,11 @@ export class HttpClient {
             await sleep(backoffDelay(attempt));
             continue;
           }
-          throw new XCropError(errorMessage, response.status, errorCode, responseHeaders);
+          throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorBody.reason ?? null);
         }
 
         // Other 4xx — not retryable
-        throw new XCropError(errorMessage, response.status, errorCode, responseHeaders);
+        throw new XCropError(errorMessage, response.status, errorCode, responseHeaders, errorBody.reason ?? null);
       } catch (err) {
         if (err instanceof XCropError) throw err;
 
@@ -209,7 +209,7 @@ export class HttpClient {
         }
 
         const responseHeaders = extractHeaders(response.headers);
-        let errorBody: { error?: string; code?: string } = {};
+        let errorBody: { error?: string; code?: string; reason?: string } = {};
         try {
           errorBody = await response.json();
         } catch {
@@ -220,7 +220,7 @@ export class HttpClient {
         // Non-retryable
         if (response.status === 401) throw new AuthError(msg, responseHeaders);
         if (response.status === 403) throw new ForbiddenError(msg, responseHeaders);
-        if (response.status === 404) throw new NotFoundError(msg, responseHeaders);
+        if (response.status === 404) throw new NotFoundError(msg, responseHeaders, errorBody.code, errorBody.reason ?? null);
 
         // Retryable: 429
         if (response.status === 429) {
@@ -241,7 +241,7 @@ export class HttpClient {
           }
         }
 
-        throw new XCropError(msg, response.status, errorBody.code ?? 'ERROR', responseHeaders);
+        throw new XCropError(msg, response.status, errorBody.code ?? 'ERROR', responseHeaders, errorBody.reason ?? null);
       } catch (err) {
         if (err instanceof XCropError) throw err;
 

@@ -2,6 +2,7 @@ import type { HttpClient } from '../http.js';
 import type {
   ConnectAccountParams,
   AccountStatus,
+  AccountCredits,
   ApiResponse,
 } from '../types.js';
 
@@ -44,6 +45,16 @@ export class AccountResource {
     return this.http.request<AccountStatus>({
       method: 'GET',
       path: '/account/status',
+    });
+  }
+
+  /**
+   * Get the current credit balance (plan allowance plus top-ups). Free.
+   */
+  async credits(): Promise<ApiResponse<AccountCredits>> {
+    return this.http.request<AccountCredits>({
+      method: 'GET',
+      path: '/account/credits',
     });
   }
 

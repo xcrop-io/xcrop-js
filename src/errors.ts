@@ -5,18 +5,25 @@ export class XCropError extends Error {
   public readonly status: number;
   public readonly code: string;
   public readonly headers: Record<string, string>;
+  /**
+   * Extra detail the API adds to some errors (404s), e.g. `suspended`,
+   * `deactivated`, `not_found`. null when the response carried none.
+   */
+  public readonly reason: string | null;
 
   constructor(
     message: string,
     status: number,
     code: string,
-    headers: Record<string, string> = {}
+    headers: Record<string, string> = {},
+    reason: string | null = null
   ) {
     super(message);
     this.name = 'XCropError';
     this.status = status;
     this.code = code;
     this.headers = headers;
+    this.reason = reason;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -56,10 +63,18 @@ export class RateLimitError extends XCropError {
 
 /**
  * Thrown when a resource is not found (404).
+ *
+ * `code` is the API's code: `NOT_FOUND` (default), `USER_SUSPENDED` or
+ * `USER_UNAVAILABLE` (with `reason`, e.g. `suspended` / `deactivated`).
  */
 export class NotFoundError extends XCropError {
-  constructor(message: string, headers: Record<string, string> = {}) {
-    super(message, 404, 'NOT_FOUND', headers);
+  constructor(
+    message: string,
+    headers: Record<string, string> = {},
+    code: string = 'NOT_FOUND',
+    reason: string | null = null
+  ) {
+    super(message, 404, code, headers, reason);
     this.name = 'NotFoundError';
   }
 }

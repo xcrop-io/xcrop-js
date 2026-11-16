@@ -1,6 +1,6 @@
 # @xcrop/sdk
 
-Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 44 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
+Official JavaScript/TypeScript SDK for the [XCROP API](https://xcrop.io), the X/Twitter data intelligence platform, covering 47 endpoints (profiles, tweets, search, lists, communities, account monitoring, and the Write API).
 
 - Full TypeScript support with detailed types for all endpoints
 - Auto-retry on rate limits (429) with exponential backoff
@@ -63,11 +63,25 @@ const { data: followers } = await client.users.followers('elonmusk', { count: 10
 const { data: following } = await client.users.following('elonmusk');
 const { data: verified } = await client.users.verifiedFollowers('elonmusk');
 
-// Raw follower IDs (bulk, no profile metadata, up to 5000/call)
+// Raw follower / following IDs (bulk, no profile metadata, up to 5000/call)
 const { data: ids } = await client.users.followersIds('elonmusk', { count: 5000 });
+const { data: followingIds } = await client.users.followingIds('elonmusk', { count: 5000 });
 
-// Batch lookup (max 100)
+// Batch lookup (max 100), by username or by numeric id
 const { data: users } = await client.users.batch(['elonmusk', 'jack', 'VitalikButerin']);
+const { data: byId, meta } = await client.users.batchByIds(['44196397', '12']);
+console.log(meta.not_found); // ids X did not return
+
+// Any user route also takes a numeric id: `id:<digits>` or `user_id`
+await client.users.get('id:44196397');
+await client.users.tweets('ignored', { user_id: '44196397' });
+
+// Time window on mentions (unix seconds or ISO date)
+await client.users.mentions('elonmusk', { since: '2026-11-01', until: '2026-11-10' });
+
+// Also return suspended/deactivated accounts (not billed). Those rows look like
+// { id, unavailable: true, unavailable_reason, ...every other field null }
+const { data: all } = await client.users.following('nasa', { include_unavailable: true });
 
 // Check follow relationship
 const { data: rel } = await client.users.checkFollow('elonmusk', 'jack');
@@ -84,6 +98,11 @@ const { data: qn } = await client.users.checkQualifiedName('elonmusk', {
 });
 ```
 
+User objects now include `location`, `website`, `banner_image`, `likes_count`,
+`media_count`, `protected`, `can_dm`, `pinned_tweet_ids`, `automated`,
+`automated_by` and `affiliation` (all nullable: `null` means X did not send it).
+Community member and moderator rows add `community_role`.
+
 ## Tweets
 
 ```typescript
@@ -98,17 +117,35 @@ const { data: quotes } = await client.tweets.quotes('1234567890');
 
 // Batch lookup (max 100)
 const { data: tweets } = await client.tweets.batch(['123', '456', '789']);
+
+// Who reposted a tweet (billed per user returned)
+const { data: retweeters } = await client.tweets.retweeters('1234567890', { count: 100 });
+
+// Conversation: sort 'latest' (default) | 'relevance' | 'likes', plus a time window
+const convo = await client.tweets.conversation('1234567890', { sort: 'likes', since: '2026-11-01' });
+console.log(convo.meta.sort, convo.meta.thread_context); // tweets above a mid-thread tweet
+
+// Time window on quotes and list tweets
+await client.tweets.quotes('1234567890', { since: 1730419200 });
+await client.lists.tweets('1234567890', { until: '2026-11-10' });
 ```
+
+Tweets now carry `url`, `lang`, `source`, `in_reply_to`, `quoted_tweet`,
+`retweeted_tweet`, `is_long_post`, `entities`, `possibly_sensitive`, `edit`,
+`has_community_notes`, `place`, `card`, `metrics.quotes` and richer `author`
+fields (`followers`, `verified`, `verified_type`, `profile_image`). `text` is
+the full text of long posts.
 
 ## Communities
 
-X Communities data. These endpoints are in beta and may return a 503
-(`ENDPOINT_IN_DEVELOPMENT`) while the backend is being finished.
+X Communities data. `count` is a minimum on members and moderators: X serves
+whole pages, so a response can hold more rows than requested.
 
 ```typescript
 const { data: community } = await client.communities.get('1708766018985501165');
-const { data: tweets } = await client.communities.tweets('1708766018985501165', { sort: 'latest' });
-const { data: members } = await client.communities.members('1708766018985501165', { sort: 'default' });
+const { data: tweets } = await client.communities.tweets('1708766018985501165', { count: 20 });
+const { data: members } = await client.communities.members('1708766018985501165', { sort: 'name' });
+const { data: mods } = await client.communities.moderators('1708766018985501165', { sort: 'default' });
 ```
 
 ## Search
@@ -288,6 +325,7 @@ const { data: subs } = await client.lists.subscribers('12345');
 // Trending topics (defaults to Worldwide)
 const { data: trends } = await client.trending.get();
 const { data: usTrends } = await client.trending.get({ country: 'United States' });
+// Each row has a 1-based `rank`; `volume` is always null (X no longer publishes counts)
 ```
 
 ## Account Monitoring
@@ -296,6 +334,14 @@ Track specific X accounts over time (profile snapshots, tweet activity) via
 the `users` and `search` endpoints above: poll `client.users.get()` /
 `client.users.tweets()` on a schedule, or use `client.stream.connect()` for
 real-time updates.
+
+## Credits
+
+```typescript
+// Free call: current credit balance
+const { data: credits } = await client.account.credits();
+console.log(credits.total_remaining, credits.plan_remaining, credits.topup_remaining);
+```
 
 ## Error Handling
 
@@ -306,17 +352,25 @@ try {
   await client.users.get('nonexistent_user_12345');
 } catch (err) {
   if (err instanceof NotFoundError) {
-    console.log('User not found');
+    // err.code: NOT_FOUND | USER_SUSPENDED | USER_UNAVAILABLE
+    // err.reason: e.g. 'suspended', 'deactivated', 'not_found'
+    console.log(`User not found: ${err.code} ${err.reason ?? ''}`);
   } else if (err instanceof AuthError) {
     console.log('Invalid API key');
   } else if (err instanceof RateLimitError) {
     console.log(`Rate limited. Retry after ${err.retryAfter}s`);
     console.log(`Remaining: ${err.remaining}/${err.limit}`);
   } else if (err instanceof XCropError) {
-    console.log(`API error: ${err.status} ${err.code} — ${err.message}`);
+    console.log(`API error: ${err.status} ${err.code} - ${err.message}`);
   }
 }
 ```
+
+Error codes returned in `err.code` (the list can grow, keep a fallback branch):
+`NOT_FOUND`, `USER_SUSPENDED`, `USER_UNAVAILABLE` (with `err.reason`),
+`BAD_COMMUNITY_ID`, `BAD_TIME_WINDOW`, `BAD_USER_ID`, `BAD_SORT`, `BAD_CURSOR`
+and `INTERNAL_ERROR` (500). Suspended and unavailable accounts arrive as a
+`NotFoundError` (404) with the matching code.
 
 ## Rate Limits
 
@@ -329,7 +383,7 @@ Per-minute request limits, by plan:
 | Pro | 600 |
 | Pay-as-You-Go | 300 |
 
-Every plan (including the free Starter tier) can call all 44 endpoints. Plans
+Every plan (including the free Starter tier) can call all 47 endpoints. Plans
 differ only by monthly credits, the rate limit above, and credit price. On a
 429 the SDK auto-retries with backoff (see `RateLimitError` above for the
 raw `retryAfter`/`remaining`/`limit` fields).

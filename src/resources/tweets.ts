@@ -9,6 +9,9 @@ import type {
   QuoteTweetParams,
   WriteResult,
   InteractionCheckResult,
+  User,
+  ConversationParams,
+  TweetQuotesParams,
 } from '../types.js';
 
 const DEFAULT_MAX_PAGES = 100;
@@ -27,16 +30,24 @@ export class TweetsResource {
   }
 
   /**
-   * Get the conversation thread for a tweet.
+   * Get the conversation thread for a tweet. `sort` is `latest` (default),
+   * `relevance` or `likes`. `meta.thread_context` holds the tweets above a
+   * mid-thread tweet (oldest first, not billed) and `meta.sort` the order used.
    */
   async conversation(
     tweetId: string,
-    params: PaginationParams = {}
+    params: ConversationParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
       path: `/tweets/${encodeURIComponent(tweetId)}/conversation`,
-      query: { count: params.count, cursor: params.cursor },
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        sort: params.sort,
+        since: params.since,
+        until: params.until,
+      },
     });
   }
 
@@ -45,11 +56,30 @@ export class TweetsResource {
    */
   async quotes(
     tweetId: string,
-    params: PaginationParams = {}
+    params: TweetQuotesParams = {}
   ): Promise<PaginatedResponse<Tweet>> {
     return this.http.request({
       method: 'GET',
       path: `/tweets/${encodeURIComponent(tweetId)}/quotes`,
+      query: {
+        count: params.count,
+        cursor: params.cursor,
+        since: params.since,
+        until: params.until,
+      },
+    });
+  }
+
+  /**
+   * Get the users who reposted a tweet. Billed per user returned.
+   */
+  async retweeters(
+    tweetId: string,
+    params: PaginationParams = {}
+  ): Promise<PaginatedResponse<User>> {
+    return this.http.request({
+      method: 'GET',
+      path: `/tweets/${encodeURIComponent(tweetId)}/retweeters`,
       query: { count: params.count, cursor: params.cursor },
     });
   }

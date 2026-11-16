@@ -19,6 +19,15 @@ export interface ApiMeta {
   total?: number;
   cursor?: string;
   has_next?: boolean;
+  /** Conversation: tweets above a mid-thread tweet, oldest first (not billed). */
+  thread_context?: Tweet[];
+  /** Conversation: the sort order that was applied. */
+  sort?: string;
+  /** users.batch / batchByIds: requested items X did not return. */
+  not_found?: string[];
+  /** users.batch / batchByIds: items whose lookup failed (retry these). */
+  failed?: string[];
+  [key: string]: unknown;
 }
 
 export interface ApiResponse<T> {
@@ -29,7 +38,25 @@ export interface ApiResponse<T> {
 export interface ApiErrorResponse {
   error: string;
   code: string;
+  /** Extra detail on 404s, e.g. `suspended`, `deactivated`, `not_found`. */
+  reason?: string;
 }
+
+/**
+ * Error codes the API returns in `code`. The list is open: new codes can
+ * appear, so keep a fallback branch when switching on it.
+ */
+export type XCropErrorCode =
+  | 'NOT_FOUND'
+  | 'USER_SUSPENDED'
+  | 'USER_UNAVAILABLE'
+  | 'BAD_COMMUNITY_ID'
+  | 'BAD_TIME_WINDOW'
+  | 'BAD_USER_ID'
+  | 'BAD_SORT'
+  | 'BAD_CURSOR'
+  | 'INTERNAL_ERROR'
+  | (string & {});
 
 // ─── Pagination ──────────────────────────────────────────────────
 
@@ -41,6 +68,45 @@ export interface PaginationParams {
 export interface PaginatedResponse<T> {
   data: T[];
   meta: ApiMeta;
+}
+
+/**
+ * Time window for endpoints that support it (user mentions, tweet quotes,
+ * tweet conversation, list tweets). Unix seconds or an ISO date string.
+ */
+export interface TimeWindowParams {
+  since?: string | number;
+  until?: string | number;
+}
+
+/** Any `users.*` route can address the user by numeric id instead of username. */
+export interface UserLookupParams {
+  /** Numeric X user id. Same as passing `id:<digits>` as the username. */
+  user_id?: string;
+}
+
+export interface UserPaginationParams extends PaginationParams, UserLookupParams {}
+
+/** followers / following / verifiedFollowers. */
+export interface UserListParams extends UserPaginationParams {
+  /**
+   * Also return suspended / deactivated accounts as rows
+   * `{ id, unavailable: true, unavailable_reason, ...other fields null }`.
+   * Not billed.
+   */
+  include_unavailable?: boolean;
+}
+
+export interface UserMentionsParams extends UserPaginationParams, TimeWindowParams {}
+
+export interface TweetQuotesParams extends PaginationParams, TimeWindowParams {}
+
+export interface ConversationParams extends PaginationParams, TimeWindowParams {
+  /**
+   * `latest` (default, newest first), `relevance` or `likes`.
+   * `popular` / `engagement` are accepted aliases of `relevance`.
+   */
+  sort?: 'latest' | 'relevance' | 'likes' | 'popular' | 'engagement';
 }
 
 // ─── User Types ──────────────────────────────────────────────────
@@ -63,7 +129,36 @@ export interface User {
   url?: string;
   pinned_tweet_id?: string;
   protected?: boolean;
+
+  // Fields below are nullable: null means X did not send it, never false/0.
+  followers?: number | null;
+  following?: number | null;
+  tweets_count?: number | null;
+  listed?: number | null;
+  verified_type?: string | null;
+  profile_image?: string | null;
+  website?: string | null;
+  banner_image?: string | null;
+  likes_count?: number | null;
+  media_count?: number | null;
+  can_dm?: boolean | null;
+  pinned_tweet_ids?: string[] | null;
+  /** True when the account carries X's "Automated by" bot label. */
+  automated?: boolean | null;
+  automated_by?: string | null;
+  affiliation?: UserAffiliation | null;
+  /** Community member / moderator rows only: Admin | Moderator | Member. */
+  community_role?: string;
+  /** Only on rows from `include_unavailable=true`: the account is suspended or deactivated. */
+  unavailable?: boolean;
+  unavailable_reason?: string | null;
   [key: string]: unknown;
+}
+
+export interface UserAffiliation {
+  label: string | null;
+  username: string | null;
+  badge_url: string | null;
 }
 
 export interface CheckFollowResult {
@@ -118,6 +213,8 @@ export interface FollowersIdsParams {
   /** Number of IDs to return, up to 5000. Defaults to 5000. */
   count?: number;
   cursor?: string;
+  /** Numeric X user id, instead of the username. */
+  user_id?: string;
 }
 
 export interface FollowersIdsMeta {
@@ -155,7 +252,66 @@ export interface Tweet {
   media?: Media[];
   urls?: UrlEntity[];
   hashtags?: string[];
+
+  /** Permalink, https://x.com/<username>/status/<id>. */
+  url?: string | null;
+  /** Client name the tweet was posted from. */
+  source?: string | null;
+  metrics?: TweetMetrics;
+  in_reply_to?: TweetInReplyTo | null;
+  /** Reposted original, nested one level deep. */
+  retweeted_tweet?: Tweet | null;
+  /** True when `text` is a long post (over 280 characters), returned in full. */
+  is_long_post?: boolean;
+  entities?: TweetEntities | null;
+  possibly_sensitive?: boolean | null;
+  edit?: TweetEdit | null;
+  has_community_notes?: boolean | null;
+  place?: TweetPlace | null;
+  card?: TweetCard | null;
   [key: string]: unknown;
+}
+
+export interface TweetMetrics {
+  likes: number;
+  retweets: number;
+  replies: number;
+  quotes: number;
+  views: number;
+  bookmarks: number;
+}
+
+export interface TweetInReplyTo {
+  tweet_id: string | null;
+  user_id: string | null;
+  username: string | null;
+}
+
+export interface TweetEntities {
+  urls: Array<{ url: string | null; expanded_url: string | null; display_url: string | null }>;
+  mentions: Array<{ id: string | null; username: string | null; name: string | null }>;
+  hashtags: string[];
+  symbols: string[];
+}
+
+export interface TweetEdit {
+  is_edited: boolean;
+  edit_tweet_ids: string[] | null;
+  /** ISO timestamp until which the tweet can still be edited. */
+  editable_until: string | null;
+}
+
+export interface TweetPlace {
+  full_name: string | null;
+  country: string | null;
+  country_code: string | null;
+}
+
+export interface TweetCard {
+  name: string | null;
+  url: string | null;
+  title: string | null;
+  poll: unknown;
 }
 
 export interface Media {
@@ -219,6 +375,10 @@ export interface TrendingParams {
 
 export interface TrendingTopic {
   name: string;
+  /** 1-based position in the trending list. */
+  rank?: number;
+  /** Always null: X no longer publishes post counts for trends. */
+  volume?: null;
   tweet_count?: number;
   domain?: string;
   context?: string;
@@ -232,15 +392,39 @@ export interface Community {
   name: string;
   description?: string;
   member_count?: number;
+  moderator_count?: number | null;
+  created_at?: string | null;
+  join_policy?: string | null;
+  invites_policy?: string | null;
+  is_nsfw?: boolean | null;
+  question?: string | null;
+  topic?: { id: string | null; name: string | null } | null;
+  search_tags?: string[];
+  banner_image?: string | null;
+  rules?: Array<{ name: string; description: string }>;
+  creator?: User | null;
+  admin?: User | null;
+  members_preview?: unknown[];
+  /** https://x.com/i/communities/<id> */
+  url?: string | null;
   [key: string]: unknown;
 }
 
 export interface CommunityTweetsParams extends PaginationParams {
+  /**
+   * @deprecated The timeline has no sort option (latest first); only
+   * `latest` is accepted and other values return BAD_SORT.
+   */
   sort?: 'latest' | 'popular' | 'engagement';
 }
 
 export interface CommunityMembersParams extends PaginationParams {
-  sort?: 'default' | 'followers' | 'name';
+  /** `default` or `name`. (`followers` is no longer accepted: BAD_SORT.) */
+  sort?: 'default' | 'name' | 'followers';
+}
+
+export interface CommunityModeratorsParams extends PaginationParams {
+  sort?: 'default' | 'name';
 }
 
 // ─── Account Types ───────────────────────────────────────────────
@@ -259,6 +443,21 @@ export interface AccountStatus {
   connected: boolean;
   username?: string;
   [key: string]: unknown;
+}
+
+export interface AccountCredits {
+  plan: string;
+  /** Plan allowance for the current period. */
+  plan_credits: number;
+  plan_used: number;
+  plan_remaining: number;
+  /** Separate top-up balance, spent after the plan allowance runs out. */
+  topup_remaining: number;
+  total_remaining: number;
+  /** ISO timestamps of the current quota period. */
+  period_start: string;
+  period_end: string;
+  rate_limit_per_minute: number;
 }
 
 // ─── Write Types ─────────────────────────────────────────────────

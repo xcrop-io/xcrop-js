@@ -7,14 +7,14 @@ import type {
   ApiResponse,
   CommunityTweetsParams,
   CommunityMembersParams,
+  CommunityModeratorsParams,
 } from '../types.js';
 
 /**
- * X Communities data.
+ * X Communities data (details, timeline, members, moderators).
  *
- * ⚠️ Beta: these endpoints are newly added to the platform and may
- * return a 503 (`ENDPOINT_IN_DEVELOPMENT`) while the backend is being
- * finished. Treat a 503 here as "not ready yet", not a hard failure.
+ * `count` is a minimum on members and moderators: X serves whole pages, so a
+ * response can hold more rows than requested.
  */
 export class CommunitiesResource {
   constructor(private readonly http: HttpClient) {}
@@ -30,7 +30,7 @@ export class CommunitiesResource {
   }
 
   /**
-   * Get tweets from a community's timeline.
+   * Get tweets from a community's timeline (latest first, no `sort` option).
    */
   async tweets(
     communityId: string,
@@ -39,7 +39,7 @@ export class CommunitiesResource {
     return this.http.request({
       method: 'GET',
       path: `/communities/${encodeURIComponent(communityId)}/tweets`,
-      query: { count: params.count, sort: params.sort, cursor: params.cursor },
+      query: { count: params.count, cursor: params.cursor },
     });
   }
 
@@ -53,6 +53,20 @@ export class CommunitiesResource {
     return this.http.request({
       method: 'GET',
       path: `/communities/${encodeURIComponent(communityId)}/members`,
+      query: { count: params.count, sort: params.sort, cursor: params.cursor },
+    });
+  }
+
+  /**
+   * Get moderators of a community. Rows carry `community_role`.
+   */
+  async moderators(
+    communityId: string,
+    params: CommunityModeratorsParams = {}
+  ): Promise<PaginatedResponse<User>> {
+    return this.http.request({
+      method: 'GET',
+      path: `/communities/${encodeURIComponent(communityId)}/moderators`,
       query: { count: params.count, sort: params.sort, cursor: params.cursor },
     });
   }
